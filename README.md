@@ -3,7 +3,6 @@
 
 <div align="center">
   Dynasty: A C2 framework inspired by anime, currently supporting <b><i>Linux</i></b>.<br> 
-  <img alt="GitHub License" src="https://img.shields.io/github/license/Trevohack/Dynasty-C2?style=for-the-badge&labelColor=blue&color=violet">
   <img alt="GitHub Repo stars" src="https://img.shields.io/github/stars/Trevohack/Dynasty-C2?style=for-the-badge&labelColor=blue&color=violet">
   <img alt="Static Badge" src="https://img.shields.io/badge/Tested--on-Linux-violet?style=for-the-badge&logo=linux&logoColor=black&labelColor=blue">
   <img alt="Static Badge" src="https://img.shields.io/badge/Bash-violet?style=for-the-badge&logo=gnubash&logoColor=black&labelColor=blue">
