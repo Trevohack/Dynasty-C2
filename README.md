@@ -53,7 +53,7 @@ chmod +x dynasty.sh
 | **`use [agent]`** | Interact with a selected agent (opens a shell) |
 | **`kill [key]`** | Terminate a selected agent using its key |
 | **`show payloads`** | Display all available payloads | 
-| **`use payload [num]`** | Activate a selected payload on the target |
+| **`set payload [num]`** | Activate a selected payload on the target |
 | **`troll`** | Send commands to all ttys on the target |
 | **`server status`** | Show the status of the web server |
 
@@ -72,6 +72,7 @@ chmod +x dynasty.sh
 ```bash
 [dev@dynasty]~# Dynasty-C2 is still under development, it may have some issues. A more stable version of it will be out soon
 ```
+
 
 
 
