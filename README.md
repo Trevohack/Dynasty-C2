@@ -1,5 +1,5 @@
 
-<h1 align="center">Dynasty 1.0 (beta)</h1>
+<h1 align="center">Dynasty 2.0 (beta)</h1>
 
 <div align="center">
   Dynasty: A C2 framework inspired by anime, currently supporting <b><i>Linux</i></b>.<br> 
@@ -57,6 +57,7 @@ chmod +x dynasty.sh
 | **`troll`** | Send commands to all ttys on the target |
 | **`server status`** | Show the status of the web server |
 
+* Will edit soon
 
 ## Usage 
 
@@ -72,6 +73,11 @@ chmod +x dynasty.sh
 ```bash
 [dev@dynasty]~# Dynasty-C2 is still under development, it may have some issues. A more stable version of it will be out soon
 ```
+
+
+
+
+
 
 
 
