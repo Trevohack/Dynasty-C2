@@ -57,8 +57,7 @@ chmod +x dynasty.sh
 | **`set privesc-payload [num]`** | Activate a selected privesc payload on the target |
 | **`troll`** | Send commands to all ttys on the target |
 | **`server status`** | Show the status of the web server |
-
-* Will edit soon
+| **`upload [url]`** | Upload files to agent |
 
 ## Usage 
 
