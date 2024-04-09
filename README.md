@@ -52,8 +52,9 @@ chmod +x dynasty.sh
 | **`agents`** |  List all active connections |
 | **`use [agent]`** | Interact with a selected agent (opens a shell) |
 | **`kill [key]`** | Terminate a selected agent using its key |
-| **`show payloads`** | Display all available payloads | 
-| **`set payload [num]`** | Activate a selected payload on the target |
+| **`generate payloads lhost=<lhost> lport=<lport> shell=<shell>`** | Generate a list of payloads |
+| **`show privesc-payloads`** | Display all available privesc payloads | 
+| **`set privesc-payload [num]`** | Activate a selected privesc payload on the target |
 | **`troll`** | Send commands to all ttys on the target |
 | **`server status`** | Show the status of the web server |
 
@@ -71,7 +72,7 @@ chmod +x dynasty.sh
 
 
 ```bash
-[dev@dynasty]~# Dynasty-C2 is still under development, it may have some issues. A more stable version of it will be out soon
+[dev@dynasty]~$ Dynasty-C2 is still under development, it may have some issues. A more stable version of it will be out soon
 ```
 
 
