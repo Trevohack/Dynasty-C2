@@ -8,11 +8,11 @@
   <img alt="Static Badge" src="https://img.shields.io/badge/Tested--on-Linux-violet?style=for-the-badge&logo=linux&logoColor=black&labelColor=blue">
   <img alt="Static Badge" src="https://img.shields.io/badge/Bash-violet?style=for-the-badge&logo=gnubash&logoColor=black&labelColor=blue">
   <p></p>
-  <a href="https://github.com/Trevohack/Dynasty-C2?tab=readme-ov-file#">Install</a>
+  <a href="https://github.com/Trevohack/Dynasty-C2#installation-instructions">Install</a>
   <span> • </span>
-  <a href="https://github.com/Trevohack/Dynasty-C2?tab=readme-ov-file#">Documentation</a>
+  <a href="https://github.com/Trevohack/Dynasty-C2#documentation-highlights">Documentation</a>
   <span> • </span>
-  <a href="https://github.com/Trevohack/Dynasty-C2?tab=readme-ov-file#">Usage</a>
+  <a href="https://github.com/Trevohack/Dynasty-C2#usage">Usage</a>
   <p></p>
 </div> 
 
