@@ -35,4 +35,4 @@ flask run --host="$ip" --port="$web_port" > "$log_file" 2>&1 &
 echo "Flask app running in the background. Logs redirected to $log_file" 
 
 echo "[+] Activating server"
-python3 dynasty/server.py $ip $port $web_port
+python3 ../dynasty/server.py $ip $port $web_port
