@@ -96,7 +96,8 @@ def get_hostname(conn):
                 break
 
         hostname = host_info.decode('utf-8').strip().split()[1]
-        return hostname
+        return hostname 
+
     except Exception as e:
         print(f"Failed to get hostname: {e}")
         return "Unknown"
@@ -183,16 +184,21 @@ def check_python_paths(conn):
     found_paths = []
 
     for path in python_paths:
-        command = f"{path} --version 2>/dev/null"
-        conn.sendall(command.encode('utf-8') + b'\n')
-        output = conn.recv(8912).decode('utf-8')
-        
-        if "Python" in output:
-            version_str = output.split()[1]
-            version = int(version_str.split('.')[0])
-            found_paths.append((path, version))
+        try:
+            command = f"{path} --version 2>/dev/null"
+            conn.sendall(command.encode('utf-8') + b'\n')
+            output = recv_all(conn, 1024).decode('utf-8').strip()
+            
+            if "Python" in output:
+                version_str = output.split()[1]
+                version = int(version_str.split('.')[0])
+                found_paths.append((path, version))
+
+        except Exception as e:
+            console.log(f"Failed to check {path}: {e}")
 
     return found_paths
+
 
 def print_agent_info(conn_list, agent_key):
     if conn_list:
